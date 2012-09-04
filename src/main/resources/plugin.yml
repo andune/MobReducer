@@ -1,0 +1,11 @@
+name: ${project.name}
+main: ${groupId}.${project.name}
+url: ${project.url}
+version: ${project.version}
+author: morganm
+database: false
+softdepend: [Vault, WorldEdit, Permissions, PermissionsEx]
+permissions:
+    mobreducer.admin:
+        description: Allows use of MobReducer admin commands
+        default: op
