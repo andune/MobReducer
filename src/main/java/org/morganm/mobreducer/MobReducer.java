@@ -44,7 +44,7 @@ public class MobReducer extends JavaPlugin {
         injector.injectMembers(this);
         
 		getServer().getScheduler().scheduleSyncRepeatingTask(this, mobManager, TICKS_ONE_MINUTE, TICKS_ONE_MINUTE);
-        debug.setLogFileName("plugins/LiftSign/debug.log");
+        debug.setLogFileName("plugins/MobReducer/debug.log");
         debug.setDebug(getConfig().getBoolean("debug", false));
         
         permSystem.setupPermissions();

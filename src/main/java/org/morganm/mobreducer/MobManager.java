@@ -8,6 +8,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import javax.inject.Inject;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -19,7 +21,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
-import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.morganm.mBukkitLib.Logger;
 
 /** Class that manages active mobs on the server, tracking information
  * about them for use by the rest of the plugin.
@@ -28,20 +30,29 @@ import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
  *
  */
 public class MobManager implements Listener, Runnable {
-    private static final long IDLE_LIMIT = 600000;  // 10 minutes, in millis. Move to config
+    // 10 minutes, in millis. Move to config
+    private static final long IDLE_LIMIT = 600000;
+    // testing only, to replaced by config options later
+    private static final int CHUNK_ENTITY_SIZE_LIMIT = 30;
     
-	private final HashMap<String, ChunkInfo> chunks;
-	private final HashMap<Integer, EntityInfo> entities;
+	private final HashMap<String, ChunkInfo> chunks = new HashMap<String, ChunkInfo>(100);
+	private final HashMap<Integer, EntityInfo> entities = new HashMap<Integer, EntityInfo>(500);
+	private final Logger log;
 	
-	public MobManager() {
-	    chunks = new HashMap<String, ChunkInfo>(100);
-	    entities = new HashMap<Integer, EntityInfo>(500);
+	@Inject
+	public MobManager(Logger log) {
+	    this.log = log;
 	}
 
 	@EventHandler
 	public void onEntitySpawn(CreatureSpawnEvent event) {
 		Entity entity = event.getEntity();
-		updatePosition(entity);
+		if( !canSpawn(entity) ) {
+		    event.setCancelled(true);
+		}
+		else {
+		    updatePosition(entity);
+		}
 	}
 	@EventHandler
 	public void onEntityDamage(EntityDamageByEntityEvent event) {
@@ -53,6 +64,28 @@ public class MobManager implements Listener, Runnable {
 	    if( event.getTarget().getType() == EntityType.PLAYER ) {
 	        interact(event.getEntity());
 	    }
+	}
+	
+	/** Method to determine whether we will allow a given entity to spawn
+	 * or not.
+	 * 
+	 * @param entity
+	 * @return
+	 */
+	private boolean canSpawn(Entity entity) {
+	    // curently only animals are limited
+	    if( isAnimal(entity) ) {
+	        Location l = entity.getLocation();
+	        if( l != null ) {
+	            ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
+	            if( chunkInfo.entities.size() > CHUNK_ENTITY_SIZE_LIMIT ) {
+	                log.info("refusing entity spawn due to chunk size limits for entity ", entity);
+	                return false;
+	            }
+	        }
+	    }
+	    
+	    return true;
 	}
 	
 	/** To be called when an entity has an "interaction" that keeps it active. Being
@@ -128,6 +161,11 @@ public class MobManager implements Listener, Runnable {
 	    chunks.remove(entityInfo.chunkKey);
 	}
 	
+	/** 
+	 * 
+	 * @param entity
+	 * @return true if entity is a monster, false if not
+	 */
 	private boolean isMonster(final Entity entity) {
 	    switch(entity.getType()) {
 	    case BLAZE:
@@ -148,6 +186,43 @@ public class MobManager implements Listener, Runnable {
 	    default:
 	        return false;
 	    }
+	}
+	
+	/**
+	 * 
+	 * @param entity
+	 * @return true if entity is an animal, false if not
+	 */
+	private boolean isAnimal(final Entity entity) {
+       switch(entity.getType()) {
+       case CHICKEN:
+       case COW:
+       case MUSHROOM_COW:
+       case OCELOT:
+       case PIG:
+       case SHEEP:
+       case SNOWMAN:
+       case SQUID:
+       case WOLF:
+           return true;
+       default:
+           return false;
+       }
+	}
+	
+    /**
+     * 
+     * @param entity
+     * @return true if entity is a village entity (villager or golem), false if not
+     */
+	private boolean isVillageEntity(final Entity entity) {
+	       switch(entity.getType()) {
+	       case VILLAGER:
+	       case IRON_GOLEM:
+	           return true;
+	       default:
+	           return false;
+	       }
 	}
 	
 	/** Check if an entity should be purged based on entity type and activity.
