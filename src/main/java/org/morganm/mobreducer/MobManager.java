@@ -14,8 +14,11 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Creature;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
@@ -31,13 +34,14 @@ import org.morganm.mBukkitLib.Logger;
  */
 public class MobManager implements Listener, Runnable {
     // 10 minutes, in millis. Move to config
-    private static final long IDLE_LIMIT = 600000;
+    private static final long IDLE_LIMIT = 30000;
     // testing only, to replaced by config options later
     private static final int CHUNK_ENTITY_SIZE_LIMIT = 30;
     
 	private final HashMap<String, ChunkInfo> chunks = new HashMap<String, ChunkInfo>(100);
 	private final HashMap<Integer, EntityInfo> entities = new HashMap<Integer, EntityInfo>(500);
 	private final Logger log;
+	private int entitySpawnCounter=0;  // debug counter
 	
 	@Inject
 	public MobManager(Logger log) {
@@ -60,8 +64,10 @@ public class MobManager implements Listener, Runnable {
 	}
 	@EventHandler
 	public void onEntityTarget(EntityTargetEvent event) {
+	    final Entity target = event.getTarget();
+	    
 	    // if the entity targeted a player, update it's interaction time
-	    if( event.getTarget().getType() == EntityType.PLAYER ) {
+	    if( target != null && target.getType() == EntityType.PLAYER ) {
 	        interact(event.getEntity());
 	    }
 	}
@@ -85,6 +91,7 @@ public class MobManager implements Listener, Runnable {
 	        }
 	    }
 	    
+	    entitySpawnCounter++;
 	    return true;
 	}
 	
@@ -225,6 +232,43 @@ public class MobManager implements Listener, Runnable {
 	       }
 	}
 	
+	/** Check if a player is nearby the given entity. This checks for a player in
+	 * the current chunk or in any of the 8 adjacent chunks (think of a tic-tac-toe
+	 * grid, with current chunk being the middle grid).
+	 * 
+	 * @param entity
+	 * @return
+	 */
+	private boolean playerIsNearby(final Entity entity) {
+	    if( !entity.isValid() )
+	        return false;
+	    
+	    final Location location = entity.getLocation();
+	    if( location == null )
+	        return false;
+	    
+	    final World world = location.getWorld();
+	    final int chunkX = location.getChunk().getX();
+	    final int chunkZ = location.getChunk().getZ();
+	    
+	    for(Player p : world.getPlayers()) {
+	        Location playerLocation = p.getLocation();
+	        if( playerLocation != null ) {
+	            int playerChunkX = p.getLocation().getChunk().getX();
+                int playerChunkZ = p.getLocation().getChunk().getZ();
+                
+                // is the player within 1 chunk distance?
+                if( playerChunkX >= chunkX-1 && playerChunkX <= chunkX+1
+                        && playerChunkZ >= chunkZ-1 && playerChunkZ <= chunkZ+1 ) {
+                    return true;
+                }
+	        }
+	    }
+	    
+	    // if we get here, no players are nearby
+	    return false;
+	}
+	
 	/** Check if an entity should be purged based on entity type and activity.
 	 * 
 	 * @param entity
@@ -235,10 +279,28 @@ public class MobManager implements Listener, Runnable {
 	        return false;
 	    
 	    EntityInfo entityInfo = getEntityInfo(entity);
-	    if( (System.currentTimeMillis() - entityInfo.lastInteractEvent) > IDLE_LIMIT ) {
+	    long timeSinceLastInteract = System.currentTimeMillis() - entityInfo.lastInteractEvent;
+	    if( timeSinceLastInteract > IDLE_LIMIT ) {
+	        if( entity instanceof Creature ) {
+	            Creature creature = (Creature) entity;
+	            
+	            // don't purge if we're currently targeting a player
+	            LivingEntity target = creature.getTarget();
+	            if( target instanceof Player ) {
+	                log.debug("shouldPurge is false. entity is targeting player. timeSinceLastInteract=",timeSinceLastInteract/1000,"s, entity=",entity);
+	                return false;
+	            }
+
+	            if( playerIsNearby(entity) ) {
+                    log.debug("shouldPurge is false. player is nearby. timeSinceLastInteract=",timeSinceLastInteract/1000,"s, entity=",entity);
+                    return false;
+	            }
+	        }
+	        log.debug("shouldPurge is true. timeSinceLastInteract=",timeSinceLastInteract/1000,"s, entity=",entity);
 	        return true;
 	    }
 	    else {
+            log.debug("shouldPurge is false. timeSinceLastInteract=",timeSinceLastInteract/1000,"s, entity=",entity);
 	        return false;
 	    }
 	}
@@ -267,6 +329,9 @@ public class MobManager implements Listener, Runnable {
 	                updatePosition(entity);
 	        }
 	    }
+	    
+	    log.debug("Entities spawned since last reset=",entitySpawnCounter);
+	    entitySpawnCounter=0;
 	}
 	
 	private class EntityInfo {
