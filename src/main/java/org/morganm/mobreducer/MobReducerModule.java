@@ -21,6 +21,7 @@ import com.google.inject.Scopes;
  */
 public class MobReducerModule extends AbstractModule {
     private final Plugin plugin;
+    private Config config;
     
     public MobReducerModule(Plugin plugin) {
         this.plugin = plugin;
@@ -35,10 +36,19 @@ public class MobReducerModule extends AbstractModule {
             .in(Scopes.SINGLETON);
         bind(PermissionSystem.class)
             .in(Scopes.SINGLETON);
+        bind(Util.class)
+            .in(Scopes.SINGLETON);
     }
 
     @Provides
     protected Plugin providePlugin() {
         return plugin;
+    }
+    
+    @Provides
+    protected Config provideConfig() {
+        if( config == null )
+            config = new Config(plugin.getConfig().getRoot());
+        return config;
     }
 }

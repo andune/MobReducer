@@ -1,1 +1,25 @@
 debug: false
+
+monsters:
+  # How long a monster can be idle before it is removed (in seconds)
+  idleAge: 600
+
+  # square radius of chunks around a player that never have despawns
+  playerChunkRadius: 1
+
+animals:
+  # max animals in a given segment, new spawns over this limit
+  # are refused
+  maxPerSegment: 30
+
+  # chunks per segment: value is squared to represent square size
+  # Examples:
+  #   1 = 1 chunk
+  #   2 = 4 chunks (2x2 square)
+  #   3 = 9 chunks (3x3 square)
+  chunkSegmentSize: 1
+
+antigrinder:
+  enabled: true
+
+antifarm:

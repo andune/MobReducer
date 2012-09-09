@@ -3,10 +3,12 @@
  */
 package org.morganm.mobreducer;
 
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.inject.Inject;
 
@@ -33,19 +35,18 @@ import org.morganm.mBukkitLib.Logger;
  *
  */
 public class MobManager implements Listener, Runnable {
-    // 10 minutes, in millis. Move to config
-    private static final long IDLE_LIMIT = 30000;
-    // testing only, to replaced by config options later
-    private static final int CHUNK_ENTITY_SIZE_LIMIT = 30;
-    
 	private final HashMap<String, ChunkInfo> chunks = new HashMap<String, ChunkInfo>(100);
 	private final HashMap<Integer, EntityInfo> entities = new HashMap<Integer, EntityInfo>(500);
 	private final Logger log;
+	private final Util util;
+	private final Config config;
 	private int entitySpawnCounter=0;  // debug counter
 	
 	@Inject
-	public MobManager(Logger log) {
+	public MobManager(Logger log, Util util, Config config) {
 	    this.log = log;
+	    this.util = util;
+	    this.config = config;
 	}
 
 	@EventHandler
@@ -80,11 +81,11 @@ public class MobManager implements Listener, Runnable {
 	 */
 	private boolean canSpawn(Entity entity) {
 	    // curently only animals are limited
-	    if( isAnimal(entity) ) {
+	    if( util.isAnimal(entity) ) {
 	        Location l = entity.getLocation();
 	        if( l != null ) {
 	            ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
-	            if( chunkInfo.entities.size() > CHUNK_ENTITY_SIZE_LIMIT ) {
+	            if( chunkInfo.entities.size() > config.getAnimalChunkSegmentSize() ) {
 	                log.info("refusing entity spawn due to chunk size limits for entity ", entity);
 	                return false;
 	            }
@@ -106,12 +107,12 @@ public class MobManager implements Listener, Runnable {
 	}
 	
 	private String getChunkKey(Chunk chunk) {
-		return chunk.getWorld().getName()+","+chunk.getX()+","+chunk.getZ();
+	    return util.getChunkKey(chunk);
 	}
 	
 	/** Return ChunkInfo object. Will create one if one doesn't already exist.
 	 * 
-	 * @param chunkKey
+	 * @param currentChunkKey
 	 * @return
 	 */
 	private ChunkInfo getChunkInfo(final Chunk chunk) {
@@ -143,9 +144,9 @@ public class MobManager implements Listener, Runnable {
 	    
 	    // if position has changed, delete old position
 	    if( currentChunkKey == null ||
-	            (entityInfo.chunkKey != null && !entityInfo.chunkKey.equals(currentChunkKey)) ) {
+	            (entityInfo.currentChunkKey != null && !entityInfo.currentChunkKey.equals(currentChunkKey)) ) {
 	        // remove 
-	        ChunkInfo chunkInfo = chunks.get(entityInfo.chunkKey);
+	        ChunkInfo chunkInfo = chunks.get(entityInfo.currentChunkKey);
 	        if( chunkInfo != null ) {
 	            chunkInfo.entities.remove(entity);
 	        }
@@ -154,7 +155,7 @@ public class MobManager implements Listener, Runnable {
 	    // if there is a current position, update new position
 	    if( currentChunkKey != null ) {
 	        // update entity->chunk mapping
-            entityInfo.chunkKey = currentChunkKey;
+            entityInfo.currentChunkKey = currentChunkKey;
             
             // update chunk->entities set
 	        ChunkInfo chunkInfo = getChunkInfo(currentLocation.getChunk());
@@ -165,71 +166,7 @@ public class MobManager implements Listener, Runnable {
 	private void cleanupEntity(final Entity entity) {
 	    EntityInfo entityInfo = getEntityInfo(entity);
 	    entities.remove(entity.getEntityId());
-	    chunks.remove(entityInfo.chunkKey);
-	}
-	
-	/** 
-	 * 
-	 * @param entity
-	 * @return true if entity is a monster, false if not
-	 */
-	private boolean isMonster(final Entity entity) {
-	    switch(entity.getType()) {
-	    case BLAZE:
-	    case CAVE_SPIDER:
-	    case CREEPER:
-	    case ENDER_DRAGON:
-	    case ENDERMAN:
-	    case GHAST:
-	    case GIANT:
-	    case MAGMA_CUBE:
-	    case PIG_ZOMBIE:
-	    case SKELETON:
-	    case SLIME:
-	    case SILVERFISH:
-	    case SPIDER:
-	    case ZOMBIE:
-	        return true;
-	    default:
-	        return false;
-	    }
-	}
-	
-	/**
-	 * 
-	 * @param entity
-	 * @return true if entity is an animal, false if not
-	 */
-	private boolean isAnimal(final Entity entity) {
-       switch(entity.getType()) {
-       case CHICKEN:
-       case COW:
-       case MUSHROOM_COW:
-       case OCELOT:
-       case PIG:
-       case SHEEP:
-       case SNOWMAN:
-       case SQUID:
-       case WOLF:
-           return true;
-       default:
-           return false;
-       }
-	}
-	
-    /**
-     * 
-     * @param entity
-     * @return true if entity is a village entity (villager or golem), false if not
-     */
-	private boolean isVillageEntity(final Entity entity) {
-	       switch(entity.getType()) {
-	       case VILLAGER:
-	       case IRON_GOLEM:
-	           return true;
-	       default:
-	           return false;
-	       }
+	    chunks.remove(entityInfo.currentChunkKey);
 	}
 	
 	/** Check if a player is nearby the given entity. This checks for a player in
@@ -257,9 +194,11 @@ public class MobManager implements Listener, Runnable {
 	            int playerChunkX = p.getLocation().getChunk().getX();
                 int playerChunkZ = p.getLocation().getChunk().getZ();
                 
-                // is the player within 1 chunk distance?
-                if( playerChunkX >= chunkX-1 && playerChunkX <= chunkX+1
-                        && playerChunkZ >= chunkZ-1 && playerChunkZ <= chunkZ+1 ) {
+                int distance = config.getMonsterPlayerChunkRadius();
+                
+                // is the player within the configured chunk distance?
+                if( playerChunkX >= chunkX-distance && playerChunkX <= chunkX+distance
+                        && playerChunkZ >= chunkZ-distance && playerChunkZ <= chunkZ+distance ) {
                     return true;
                 }
 	        }
@@ -275,12 +214,12 @@ public class MobManager implements Listener, Runnable {
 	 * @return
 	 */
 	private boolean shouldPurge(final Entity entity) {
-	    if( !isMonster(entity) )   // only monsters can be purged
+	    if( !util.isMonster(entity) )   // only monsters can be purged
 	        return false;
 	    
 	    EntityInfo entityInfo = getEntityInfo(entity);
 	    long timeSinceLastInteract = System.currentTimeMillis() - entityInfo.lastInteractEvent;
-	    if( timeSinceLastInteract > IDLE_LIMIT ) {
+	    if( timeSinceLastInteract > (config.getMonsterIdleAge() * 1000) ) {
 	        if( entity instanceof Creature ) {
 	            Creature creature = (Creature) entity;
 	            
@@ -335,16 +274,76 @@ public class MobManager implements Listener, Runnable {
 	}
 	
 	private class EntityInfo {
-	    final int entityId;
+	    final UUID uuid;
+	    // WeakReference serves as a cache to the entity object. Might be null if
+	    // the entity has been unloaded or removed.
+	    WeakReference<Entity> entityRef;
+	    String worldName;
 	    long lastInteractEvent;
-	    String chunkKey;       // our last known chunk position
+	    private String currentChunkKey;       // our last known chunk position
+	    Location spawnLocation;
+	    String spawnChunkKey;
 	    
 	    public EntityInfo(Entity entity) {
-	        this.entityId = entity.getEntityId();
-	        this.lastInteractEvent = System.currentTimeMillis();
-	        Location l = entity.getLocation();
-	        if( l != null )
-	            chunkKey = getChunkKey(l.getChunk());
+	        this.entityRef = new WeakReference<Entity>(entity);
+	        this.uuid = entity.getUniqueId();
+	        
+	        /* Though not documented explicitly one way or another, as best I can tell
+	         * an entity will always have a location when being created. It's possible
+	         * it could be null if the entity has been removed, but this constructor
+	         * is only called as entities are being created. So rather than write a
+	         * bunch of code here and elsewhere in this class to protect against it
+	         * possibly being null, I'll go with the assumption that it is never null
+	         * until I see an NPE that proves otherwise.
+	         */
+            final Location l = entity.getLocation();
+            this.worldName = l.getWorld().getName();
+            this.currentChunkKey = getChunkKey(l.getChunk());
+            this.spawnChunkKey = currentChunkKey;
+            
+            this.lastInteractEvent = System.currentTimeMillis();
+	    }
+	    
+	    public World getWorld() {
+            return Bukkit.getWorld(worldName);
+	    }
+	    
+	    public Entity getEntity() {
+	        Entity entity = entityRef.get();   // use WeakReference object if set
+	        
+	        if( entity == null ) {
+	            World world = getWorld();
+	            
+	            // possible world was deleted by MultiVerse since this entity was created
+	            if( world != null ) {
+	                List<Entity> entities = world.getEntities();
+	                for(Entity e : entities) {
+	                    if( e.getUniqueId().equals(uuid) ) {
+	                        entity = e;
+	                        entityRef = new WeakReference<Entity>(e);
+	                        break;
+	                    }
+	                }
+	            }
+	        }
+	        
+	        return entity;
+	    }
+	    
+	    public String getCurrentChunkKey() {
+	        Entity entity = getEntity();
+	        
+	        // make sure chunkKey and world is current
+	        if( entity != null ) {
+	            worldName = entity.getLocation().getWorld().getName();
+	            currentChunkKey = util.getChunkKey(entity.getLocation().getChunk());
+	        }
+	        
+	        return currentChunkKey;
+	    }
+	    
+	    public String getSpawnChunkKey() {
+	        return spawnChunkKey;
 	    }
 	}
 	
@@ -371,4 +370,3 @@ public class MobManager implements Listener, Runnable {
 		}
 	}
 }
-

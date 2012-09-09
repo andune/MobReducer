@@ -28,6 +28,7 @@ public class MobReducer extends JavaPlugin {
     private Debug debug;
     private Logger log;
     private PermissionSystem permSystem;
+    private Config config;
     
     private int buildNumber = -1;
     
@@ -46,12 +47,19 @@ public class MobReducer extends JavaPlugin {
 		getServer().getScheduler().scheduleSyncRepeatingTask(this, mobManager, TICKS_ONE_MINUTE, TICKS_ONE_MINUTE);
         debug.setLogFileName("plugins/MobReducer/debug.log");
         debug.setDebug(getConfig().getBoolean("debug", false));
+        debug.debug("DEBUG ENABLED");   // prints only if debug is enabled
         
         permSystem.setupPermissions();
         
         getServer().getPluginManager().registerEvents(mobManager, this);
         
         log.info("version "+getDescription().getVersion()+", build "+buildNumber+" is enabled");
+	}
+	
+	@Override
+	public void reloadConfig() {
+	    super.reloadConfig();
+	    config.setSection(getConfig().getRoot());
 	}
 	
 	@Override
@@ -77,5 +85,10 @@ public class MobReducer extends JavaPlugin {
     @Inject
     public void setPermissionSystem(PermissionSystem permSystem) {
         this.permSystem = permSystem;
+    }
+    
+    @Inject
+    public void setConfig(Config config) {
+        this.config = config;
     }
 }
