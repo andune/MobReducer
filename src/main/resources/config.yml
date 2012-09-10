@@ -14,9 +14,9 @@ animals:
 
   # chunks per segment: value is squared to represent square size
   # Examples:
-  #   1 = 1 chunk
-  #   2 = 4 chunks (2x2 square)
-  #   3 = 9 chunks (3x3 square)
+  #   0 = 1 chunk 
+  #   1 = 9 chunks (3x3 square, ie. tic-tac-toe)
+  #   2 = 25 chunks (5x5 square)
   chunkSegmentSize: 1
 
 antigrinder:

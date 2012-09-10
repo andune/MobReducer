@@ -6,6 +6,7 @@ package org.morganm.mobreducer;
 import javax.inject.Inject;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.morganm.mBukkitLib.Logger;
 
 /**
  * @author morganm
@@ -16,6 +17,7 @@ public class Config {
     private static final String ANIMALS_BASE = "animals.";
     
     private ConfigurationSection section;
+    private Logger log;
     
     /** Class accepts a ConfigurationSection as opposed to calling
      * plugin.getConfig() or using a FileConfiguration object. This provides
@@ -24,8 +26,9 @@ public class Config {
      * @param section
      */
     @Inject
-    public Config(ConfigurationSection section) {
+    public Config(ConfigurationSection section, Logger log) {
         this.section = section;
+        this.log = log;
     }
     
     /** Used to change the config section in use, most commonly used when
@@ -56,16 +59,17 @@ public class Config {
         return section.getInt(MONSTER_BASE+"playerChunkRadius");
     }
 
-    /** Chunks per segment: value is squared to represent square size.
+    private static final String ANIMAL_SEGMENT_SIZE = ANIMALS_BASE+"chunkSegmentSize";
+    /** Chunks per segment: cocentric squares from chunk being measured.
      * Examples:
-     *   1 = 1 chunk
-     *   2 = 4 chunks (2x2 square)
-     *   3 = 9 chunks (3x3 square)
+     *   0 = 1 chunk 
+     *   1 = 9 chunks (3x3 square, ie. tic-tac-toe)
+     *   2 = 25 chunks (5x5 square)
      * 
      * @return
      */
     public int getAnimalChunkSegmentSize() {
-        return section.getInt(ANIMALS_BASE+"chunkSegmentSize");
+        return section.getInt(ANIMAL_SEGMENT_SIZE);
     }
     
     /** Maximum animals allowed per segment before they aren't allowed
@@ -75,5 +79,24 @@ public class Config {
      */
     public int getAnimalMaxPerSegment() {
         return section.getInt(ANIMALS_BASE+"maxPerSegment");
+    }
+
+    /** Do validations to warn admin if there are any funky settings.
+     * 
+     * @return true if validations pass enough that the plugin should run, false if not
+     */
+    public boolean validate() {
+        boolean ret = true;
+        
+        // we run through all checks, not just the first one. This way the admin gets
+        // to see all errors at once that they need to fix.
+        
+        if( getAnimalChunkSegmentSize() < 0 || getAnimalChunkSegmentSize() > 2 ) {
+            log.severe("Invalid config value for "+ANIMAL_SEGMENT_SIZE+": "+getAnimalChunkSegmentSize()
+                    +" [value must be between 0 and 2]");
+            ret = false;
+        }
+        
+        return ret;
     }
 }

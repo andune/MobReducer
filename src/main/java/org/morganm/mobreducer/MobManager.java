@@ -84,10 +84,26 @@ public class MobManager implements Listener, Runnable {
 	    if( util.isAnimal(entity) ) {
 	        Location l = entity.getLocation();
 	        if( l != null ) {
-	            ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
-	            if( chunkInfo.entities.size() > config.getAnimalChunkSegmentSize() ) {
-	                log.info("refusing entity spawn due to chunk size limits for entity ", entity);
-	                return false;
+	            final int chunkX = l.getChunk().getX();
+	            final int chunkZ = l.getChunk().getZ();
+	            final int segmentSize = config.getAnimalChunkSegmentSize();
+	            final int maxPerSegment = config.getAnimalMaxPerSegment();
+
+	            int count = 0;
+	            // iterate through all chunks in the segement and count mobs
+	            // to be sure we can spawn this animal
+	            for(int x=chunkX-segmentSize; x <= chunkX+segmentSize; x++) {
+	                for(int z=chunkZ-segmentSize; z <= chunkZ+segmentSize; z++) {
+	                    ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
+	                    count += chunkInfo.getAnimals().size();
+	                    
+	                    // don't loop any longer than we have to, if we're over the
+	                    // limit, stop looping and return the status
+	                    if( count > maxPerSegment ) {
+	                        log.info("refusing entity spawn due to chunk size limits for entity ", entity);
+	                        return false;
+	                    }
+	                }
 	            }
 	        }
 	    }
@@ -146,10 +162,10 @@ public class MobManager implements Listener, Runnable {
 	    if( currentChunkKey == null ||
 	            (entityInfo.currentChunkKey != null && !entityInfo.currentChunkKey.equals(currentChunkKey)) ) {
 	        // remove 
-	        ChunkInfo chunkInfo = chunks.get(entityInfo.currentChunkKey);
-	        if( chunkInfo != null ) {
-	            chunkInfo.entities.remove(entity);
-	        }
+//	        ChunkInfo chunkInfo = chunks.get(entityInfo.currentChunkKey);
+//	        if( chunkInfo != null ) {
+//	            chunkInfo.entities.remove(entity);
+//	        }
 	    }
 	    
 	    // if there is a current position, update new position
@@ -158,8 +174,8 @@ public class MobManager implements Listener, Runnable {
             entityInfo.currentChunkKey = currentChunkKey;
             
             // update chunk->entities set
-	        ChunkInfo chunkInfo = getChunkInfo(currentLocation.getChunk());
-	        chunkInfo.entities.add(entity);
+//	        ChunkInfo chunkInfo = getChunkInfo(currentLocation.getChunk());
+//	        chunkInfo.entities.add(entity);
 	    }
 	}
 	
@@ -347,17 +363,31 @@ public class MobManager implements Listener, Runnable {
 	    }
 	}
 	
+	/** Class for keeping track of chunk metadata without actually storing the chunks object.
+	 * This is important since chunk objects load and unload all the time and two chunk
+	 * objects representing the same chunk (loaded at different times) aren't guaranteed
+	 * to be .equal() to each other.
+	 * 
+	 * @author morganm
+	 *
+	 */
 	private class ChunkInfo {
 		final World world;
 		final int x;
 		final int z;
-		final Set<Entity> entities;
+		/* A bukkit tick is 50ms (or longer). Rather than schedule a tick counter
+		 * to run on every tick, we just use this fact to cache data for no more than
+		 * 50ms, thus guaranteeing we reset the cache on every tick (>50ms since last call)
+		 * and never use stale data (never use data past 50ms). 
+		 * 
+		 */
+		private long lastCacheTick;
+		private final Set<Entity> cachedAnimals = new HashSet<Entity>();
 
 		public ChunkInfo(Chunk chunk) {
 		    world = chunk.getWorld();
 		    x = chunk.getX();
 		    z = chunk.getZ();
-		    entities = new HashSet<Entity>();
 		}
 		public boolean isChunkLoaded() {
 			return world.isChunkLoaded(x, z);
@@ -367,6 +397,35 @@ public class MobManager implements Listener, Runnable {
 		        return world.getChunkAt(x, z);
 		    else
 		        return null;
+		}
+		public Entity[] getEntities() {
+		    return getChunk().getEntities();
+		}
+		
+		/** Return the animals that are in the current chunk. The result is
+		 * cached per-tick (since entities won't move between successive calls
+		 * in the same tick to this method), so it is efficient to call
+		 * repeatedly.
+		 * 
+		 * @return
+		 */
+		public Set<Entity> getAnimals() {
+		    // cache still valid?
+		    if( System.currentTimeMillis() < lastCacheTick+50 ) {
+		        return cachedAnimals;
+		    }
+		    // cache no longer valid, reload cache and reset timer
+		    else {
+		        lastCacheTick=System.currentTimeMillis();
+		        cachedAnimals.clear();
+		        Entity[] entities = getEntities();
+		        for(int i=0; i < entities.length; i++) {
+		            if( util.isAnimal(entities[i]) )
+		                cachedAnimals.add(entities[i]);
+		        }
+		    }
+		    
+		    return cachedAnimals;
 		}
 	}
 }

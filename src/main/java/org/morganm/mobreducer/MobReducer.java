@@ -3,8 +3,6 @@
  */
 package org.morganm.mobreducer;
 
-import java.io.File;
-
 import javax.inject.Inject;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -31,18 +29,26 @@ public class MobReducer extends JavaPlugin {
     private Config config;
     
     private int buildNumber = -1;
+    private boolean enableAborted = false;
     
 	@Override
 	public void onEnable() {
+	    enableAborted = false;
         JarUtils jarUtil = new JarUtils(this, getLogger(), getFile());
-        // copy default config.yml into place if needed
-        jarUtil.copyConfigFromJar("config.yml", new File(getDataFolder(), "config.yml"));
         buildNumber = jarUtil.getBuildNumber();
+        
+        saveDefaultConfig();    // copy default config.yml into place if needed
         
         // build object graph using Guice dependency injection. This injects
         // all dependencies for us using the @Inject annotations
         Injector injector = Guice.createInjector(new MobReducerModule(this));
         injector.injectMembers(this);
+        
+        getConfig();    // make sure reloadConfig() is run
+        if( enableAborted ) {
+            log.severe("version "+getDescription().getVersion()+", build "+buildNumber+" enable aborted");
+            return;
+        }
         
 		getServer().getScheduler().scheduleSyncRepeatingTask(this, mobManager, TICKS_ONE_MINUTE, TICKS_ONE_MINUTE);
         debug.setLogFileName("plugins/MobReducer/debug.log");
@@ -59,7 +65,20 @@ public class MobReducer extends JavaPlugin {
 	@Override
 	public void reloadConfig() {
 	    super.reloadConfig();
-	    config.setSection(getConfig().getRoot());
+	    
+	    if( config != null ) {
+	        config.setSection(getConfig().getRoot());
+	        if( !config.validate() ) {
+	            log.severe("Config file validation failed, plugin shutting down");
+	            
+                enableAborted = true;   // abort enablement if we're just now being enabled
+                
+                // shutdown plugin if we were already enabled and we were
+                // just reloaded with a bogus config
+	            if( isEnabled() )
+	                getServer().getPluginManager().disablePlugin(this);
+	        }
+	    }
 	}
 	
 	@Override
