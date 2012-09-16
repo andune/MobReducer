@@ -10,11 +10,17 @@ import org.morganm.mBukkitLib.Debug;
 import org.morganm.mBukkitLib.Logger;
 import org.morganm.mBukkitLib.LoggerImpl;
 import org.morganm.mBukkitLib.PermissionSystem;
+import org.morganm.mobreducer.manager.ChunkInfo;
+import org.morganm.mobreducer.manager.ChunkInfoFactory;
+import org.morganm.mobreducer.manager.EntityInfo;
+import org.morganm.mobreducer.manager.EntityInfoFactory;
+import org.morganm.mobreducer.manager.MobManager;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Provider;
 import com.google.inject.Provides;
 import com.google.inject.Scopes;
+import com.google.inject.assistedinject.FactoryModuleBuilder;
 
 /** This module tells Guice how to wire together all dependencies
  * for the plugin.
@@ -43,6 +49,17 @@ public class MobReducerModule extends AbstractModule {
         bind(Config.class)
             .toProvider(ConfigProvider.class)
             .in(Scopes.SINGLETON);
+        bind(MobManager.class)
+            .in(Scopes.SINGLETON);
+        
+        install(new FactoryModuleBuilder()
+            .implement(ChunkInfo.class, ChunkInfo.class)
+            .build(ChunkInfoFactory.class)
+        );
+        install(new FactoryModuleBuilder()
+            .implement(EntityInfo.class, EntityInfo.class)
+            .build(EntityInfoFactory.class)
+        );
     }
 
     @Provides

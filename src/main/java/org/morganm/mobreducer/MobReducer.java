@@ -10,6 +10,8 @@ import org.morganm.mBukkitLib.Debug;
 import org.morganm.mBukkitLib.JarUtils;
 import org.morganm.mBukkitLib.Logger;
 import org.morganm.mBukkitLib.PermissionSystem;
+import org.morganm.mobreducer.listener.EntityListener;
+import org.morganm.mobreducer.manager.MobManager;
 
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -27,6 +29,7 @@ public class MobReducer extends JavaPlugin {
     private Logger log;
     private PermissionSystem permSystem;
     private Config config;
+    private EntityListener entityListener;
     
     private int buildNumber = -1;
     private boolean enableAborted = false;
@@ -50,14 +53,17 @@ public class MobReducer extends JavaPlugin {
             return;
         }
         
-		getServer().getScheduler().scheduleSyncRepeatingTask(this, mobManager, TICKS_ONE_MINUTE, TICKS_ONE_MINUTE);
         debug.setLogFileName("plugins/MobReducer/debug.log");
         debug.setDebug(getConfig().getBoolean("debug", false));
         debug.debug("DEBUG ENABLED");   // prints only if debug is enabled
         
-        permSystem.setupPermissions();
+        int ticks = TICKS_ONE_MINUTE;
+        if( debug.isDebug() )
+            ticks /= 4;         // run scheduled tasks more often when debugging
         
-        getServer().getPluginManager().registerEvents(mobManager, this);
+        getServer().getScheduler().scheduleSyncRepeatingTask(this, mobManager, ticks, ticks);
+        permSystem.setupPermissions();
+        getServer().getPluginManager().registerEvents(entityListener, this);
         
         log.info("version "+getDescription().getVersion()+", build "+buildNumber+" is enabled");
 	}
@@ -109,5 +115,10 @@ public class MobReducer extends JavaPlugin {
     @Inject
     public void setConfig(Config config) {
         this.config = config;
+    }
+    
+    @Inject
+    public void setEntityListener(EntityListener entityListener) {
+        this.entityListener = entityListener;
     }
 }

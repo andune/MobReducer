@@ -13,7 +13,7 @@ import org.morganm.mBukkitLib.Logger;
  *
  */
 public class Config {
-    private static final String MONSTER_BASE = "monster.";
+    private static final String MONSTER_BASE = "monsters.";
     private static final String ANIMALS_BASE = "animals.";
     
     private ConfigurationSection section;
