@@ -16,6 +16,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -26,6 +27,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.entity.PotionSplashEvent;
 import org.morganm.mBukkitLib.Logger;
 
 /** Class that manages active mobs on the server, tracking information
@@ -36,7 +38,7 @@ import org.morganm.mBukkitLib.Logger;
  */
 public class MobManager implements Listener, Runnable {
 	private final HashMap<String, ChunkInfo> chunks = new HashMap<String, ChunkInfo>(100);
-	private final HashMap<Integer, EntityInfo> entities = new HashMap<Integer, EntityInfo>(500);
+	private final HashMap<UUID, EntityInfo> entities = new HashMap<UUID, EntityInfo>(500);
 	private final Logger log;
 	private final Util util;
 	private final Config config;
@@ -58,11 +60,31 @@ public class MobManager implements Listener, Runnable {
 		else {
 		    updatePosition(entity);
 		}
+		
+		// spawning is considered an interaction. This makes sure that entities being
+		// loaded due to ChunkLoad don't get despawned immediately at the next idle
+		// check because maybe their last update time was from when the Chunk was
+		// last loaded (possibly a long time ago).
+        interact(entity);
 	}
 	@EventHandler
 	public void onEntityDamage(EntityDamageByEntityEvent event) {
 	    interact(event.getEntity());
+	    log.info("EntityDamageByEntityEvent: cause=",event.getCause(),", damager=",event.getDamager());
+	    if( event.getDamager() instanceof Arrow ) { 
+	        Arrow arrow = (Arrow) event.getDamager();
+	        log.info("EntityDamageByEntityEvent: shooter=",arrow.getShooter());
+	    }
 	}
+    @EventHandler
+    public void onPotionSplashEent(PotionSplashEvent event) {
+        interact(event.getEntity());
+        log.info("onPotionSplashEent: shooter=",event.getPotion().getShooter());
+    }
+//    @EventHandler
+//	public void onEntityDamage(EntityDamageEvent event) {
+//        log.info("EntityDamageEvent: cause=",event.getCause());
+//	}
 	@EventHandler
 	public void onEntityTarget(EntityTargetEvent event) {
 	    final Entity target = event.getTarget();
@@ -90,7 +112,7 @@ public class MobManager implements Listener, Runnable {
 	            final int maxPerSegment = config.getAnimalMaxPerSegment();
 
 	            int count = 0;
-	            // iterate through all chunks in the segement and count mobs
+	            // iterate through all chunks in the segment and count mobs
 	            // to be sure we can spawn this animal
 	            for(int x=chunkX-segmentSize; x <= chunkX+segmentSize; x++) {
 	                for(int z=chunkZ-segmentSize; z <= chunkZ+segmentSize; z++) {
@@ -100,7 +122,7 @@ public class MobManager implements Listener, Runnable {
 	                    // don't loop any longer than we have to, if we're over the
 	                    // limit, stop looping and return the status
 	                    if( count > maxPerSegment ) {
-	                        log.info("refusing entity spawn due to chunk size limits for entity ", entity);
+	                        log.debug("refusing entity spawn due to chunk size limits for entity ", entity);
 	                        return false;
 	                    }
 	                }
@@ -142,10 +164,10 @@ public class MobManager implements Listener, Runnable {
 	}
 	
 	private EntityInfo getEntityInfo(final Entity entity) {
-	    EntityInfo entityInfo = entities.get(entity.getEntityId());
+	    EntityInfo entityInfo = entities.get(entity.getUniqueId());
 	    if( entityInfo == null ) {
 	        entityInfo = new EntityInfo(entity);
-	        entities.put(entity.getEntityId(), entityInfo);
+	        entities.put(entity.getUniqueId(), entityInfo);
 	    }
 	    return entityInfo;
 	}
@@ -181,7 +203,7 @@ public class MobManager implements Listener, Runnable {
 	
 	private void cleanupEntity(final Entity entity) {
 	    EntityInfo entityInfo = getEntityInfo(entity);
-	    entities.remove(entity.getEntityId());
+	    entities.remove(entity.getUniqueId());
 	    chunks.remove(entityInfo.currentChunkKey);
 	}
 	
@@ -289,6 +311,11 @@ public class MobManager implements Listener, Runnable {
 	    entitySpawnCounter=0;
 	}
 	
+	/** Class to track meta information about an Entity and specifically to
+	 * be hash key/value safe even as entities are loaded/unloaded as chunks
+	 * come and go.
+	 * 
+	 */
 	private class EntityInfo {
 	    final UUID uuid;
 	    // WeakReference serves as a cache to the entity object. Might be null if
@@ -324,6 +351,11 @@ public class MobManager implements Listener, Runnable {
             return Bukkit.getWorld(worldName);
 	    }
 	    
+	    /**
+	     * 
+	     * @return the entity this EntityInfo represents. Can be null if the backing entity
+	     * is currently unloaded (because the Chunk it is in has been unloaded by Bukkit).
+	     */
 	    public Entity getEntity() {
 	        Entity entity = entityRef.get();   // use WeakReference object if set
 	        
