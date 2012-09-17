@@ -30,6 +30,7 @@ public class EntityInfo {
     private String currentChunkKey;       // our last known chunk position
 //    private Location spawnLocation;
     private String spawnChunkKey;
+    private boolean isPlayerDamaged=false;
     
     @Inject
     public EntityInfo(@Assisted Entity entity, Util util) {
@@ -82,6 +83,16 @@ public class EntityInfo {
         }
         
         return entity;
+    }
+    
+    /** Called to indicate this entity has been damaged by a player.
+     * 
+     */
+    public void setPlayerDamaged() {
+        isPlayerDamaged=true;
+    }
+    public boolean isPlayerDamaged() {
+        return this.isPlayerDamaged;
     }
     
     public long getLastInteractEventTime() {

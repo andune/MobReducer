@@ -19,6 +19,10 @@ animals:
   #   2 = 25 chunks (5x5 square)
   chunkSegmentSize: 1
 
+# set to true to require a player to damage a mob in order
+# for the mob to drop items/XP.
+playerDamageRequiredForDrops: true
+
 antigrinder:
   enabled: true
 

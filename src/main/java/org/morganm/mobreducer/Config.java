@@ -80,6 +80,10 @@ public class Config {
     public int getAnimalMaxPerSegment() {
         return section.getInt(ANIMALS_BASE+"maxPerSegment");
     }
+    
+    public boolean isPlayerDamageRequiredForDrops() {
+        return section.getBoolean("playerDamageRequiredForDrops");
+    }
 
     /** Do validations to warn admin if there are any funky settings.
      * 

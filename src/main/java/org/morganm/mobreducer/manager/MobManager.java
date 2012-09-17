@@ -97,6 +97,16 @@ public class MobManager implements Runnable {
 	    entityInfo.setLastInteractEventTime(System.currentTimeMillis());
 	}
 	
+	/** Called to indicate a player damaged the given entity. This is tracked so
+	 * we know when a monster dies whether or not it was ever hit by a player.
+	 * 
+	 * @param entity
+	 */
+	public void playerDamage(final Entity entity) {
+        EntityInfo entityInfo = getEntityInfo(entity);
+        entityInfo.setPlayerDamaged();
+	}
+	
 	String getChunkKey(Chunk chunk) {
 	    return util.getChunkKey(chunk);
 	}
@@ -116,7 +126,7 @@ public class MobManager implements Runnable {
 	    return chunkInfo;
 	}
 	
-	private EntityInfo getEntityInfo(final Entity entity) {
+	public EntityInfo getEntityInfo(final Entity entity) {
 	    EntityInfo entityInfo = entities.get(entity.getUniqueId());
 	    if( entityInfo == null ) {
 	        entityInfo = entityInfoFactory.create(entity);
