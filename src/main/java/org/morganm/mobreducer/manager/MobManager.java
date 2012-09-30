@@ -76,10 +76,10 @@ public class MobManager implements Runnable {
 	private boolean isAnimalSegmentCountExceeded(final Location l) {
         final int maxPerSegment = config.getAnimalMaxPerSegment();
         if( getAnimalSegmentCount(l) > maxPerSegment ) {
-            return false;
+            return true;
         }
         else {
-            return true;
+            return false;
         }
 	}
 	
@@ -123,6 +123,10 @@ public class MobManager implements Runnable {
                 for(int z=chunkZ-segmentSize; z <= chunkZ+segmentSize; z++) {
                     ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
                     for(Animals entity : chunkInfo.getAnimals()) {
+                    	// skip invalid or dead animals
+                    	if( !entity.isValid() || entity.isDead() )
+                    		continue;
+                    	
                         // ignore Tamed animals if directed to do so 
                         if( ignoreTamed && entity instanceof Tameable ) {
                             Tameable tameable = (Tameable) entity;
@@ -151,11 +155,14 @@ public class MobManager implements Runnable {
 	 * @param entity
 	 */
 	public void entitySpawned(final Entity entity) {
+		log.devDebug("entitySpawned: entity=",entity);
         if( util.isAnimal(entity) ) {
+    		log.debug("entitySpawned: entity is animal");
             // are we over the max animals allowed per segment? If so and the right
             // config flag is set, we kill off the oldest animal to make room for
             // the new one.
             if( config.isAnimalKillOldestOnSpawn() && isAnimalSegmentCountExceeded(entity.getLocation()) ) {
+        		log.debug("entitySpawned: animal count exceeded");
                 Animals oldestAnimal = getOldestSegmentAnimal(entity.getLocation(), true);
                 if( oldestAnimal != null ) {
                     log.debug("Killing oldest animal "+oldestAnimal);
