@@ -81,6 +81,15 @@ public class Config {
         return section.getInt(ANIMALS_BASE+"maxPerSegment");
     }
     
+    /** Set to true to indicate the oldest animal in the segment should
+     * be killed if a new one is spawned.
+     * 
+     * @return
+     */
+    public boolean isAnimalKillOldestOnSpawn() {
+        return section.getBoolean(ANIMALS_BASE+"killOldestOnSpawn");
+    }
+    
     public boolean isPlayerDamageRequiredForDrops() {
         return section.getBoolean("playerDamageRequiredForDrops");
     }

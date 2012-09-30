@@ -7,8 +7,8 @@ import javax.inject.Inject;
 
 import org.bukkit.Chunk;
 import org.bukkit.World;
+import org.bukkit.entity.Animals;
 import org.bukkit.entity.Entity;
-import org.morganm.mobreducer.Util;
 
 import com.google.inject.assistedinject.Assisted;
 
@@ -21,7 +21,6 @@ import com.google.inject.assistedinject.Assisted;
  *
  */
 public class ChunkInfo {
-    private final Util util;
     private final World world;
     private final int x;
     private final int z;
@@ -33,14 +32,13 @@ public class ChunkInfo {
 	 * 
 	 */
 	private long lastCacheTick;
-	private final Set<Entity> cachedAnimals = new HashSet<Entity>();
+	private final Set<Animals> cachedAnimals = new HashSet<Animals>();
 
 	@Inject
-	public ChunkInfo(@Assisted Chunk chunk, Util util) {
+	public ChunkInfo(@Assisted Chunk chunk) {
         this.world = chunk.getWorld();
 	    this.x = chunk.getX();
 	    this.z = chunk.getZ();
-	    this.util = util;
 	}
 	public boolean isChunkLoaded() {
 		return world.isChunkLoaded(x, z);
@@ -62,7 +60,7 @@ public class ChunkInfo {
 	 * 
 	 * @return
 	 */
-	public Set<Entity> getAnimals() {
+	public Set<Animals> getAnimals() {
 	    // cache still valid?
 	    if( System.currentTimeMillis() < lastCacheTick+50 ) {
 	        return cachedAnimals;
@@ -73,8 +71,9 @@ public class ChunkInfo {
 	        cachedAnimals.clear();
 	        Entity[] entities = getEntities();
 	        for(int i=0; i < entities.length; i++) {
-	            if( util.isAnimal(entities[i]) )
-	                cachedAnimals.add(entities[i]);
+//              if( util.isAnimal(entities[i]) )
+	            if( entities[i] instanceof Animals )
+	                cachedAnimals.add((Animals) entities[i]);
 	        }
 	    }
 	    

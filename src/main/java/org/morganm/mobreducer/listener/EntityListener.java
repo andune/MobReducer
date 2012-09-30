@@ -41,7 +41,7 @@ public class EntityListener implements Listener {
         this.config = config;
     }
     
-    @EventHandler(ignoreCancelled=true)
+    @EventHandler(priority=EventPriority.HIGH, ignoreCancelled=true)
     public void onEntitySpawn(CreatureSpawnEvent event) {
         Entity entity = event.getEntity();
         if( !manager.canSpawn(entity) ) {
@@ -56,6 +56,8 @@ public class EntityListener implements Listener {
         // check because maybe their last update time was from when the Chunk was
         // last loaded (possibly a long time ago).
         manager.interact(entity);
+        
+        manager.entitySpawned(entity);
     }
     
     @EventHandler(ignoreCancelled=true)

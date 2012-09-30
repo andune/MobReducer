@@ -13,10 +13,12 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Animals;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
 import org.morganm.mBukkitLib.Logger;
 import org.morganm.mobreducer.Config;
 import org.morganm.mobreducer.Util;
@@ -56,35 +58,113 @@ public class MobManager implements Runnable {
 	 */
 	public boolean canSpawn(Entity entity) {
 	    // curently only animals are limited
-	    if( util.isAnimal(entity) ) {
-	        Location l = entity.getLocation();
-	        if( l != null ) {
-	            final int chunkX = l.getChunk().getX();
-	            final int chunkZ = l.getChunk().getZ();
-	            final int segmentSize = config.getAnimalChunkSegmentSize();
-	            final int maxPerSegment = config.getAnimalMaxPerSegment();
-
-	            int count = 0;
-	            // iterate through all chunks in the segment and count mobs
-	            // to be sure we can spawn this animal
-	            for(int x=chunkX-segmentSize; x <= chunkX+segmentSize; x++) {
-	                for(int z=chunkZ-segmentSize; z <= chunkZ+segmentSize; z++) {
-	                    ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
-	                    count += chunkInfo.getAnimals().size();
-	                    
-	                    // don't loop any longer than we have to, if we're over the
-	                    // limit, stop looping and return the status
-	                    if( count > maxPerSegment ) {
-	                        log.debug("refusing entity spawn due to chunk size limits for entity ", entity);
-	                        return false;
-	                    }
-	                }
-	            }
-	        }
+	    if( util.isAnimal(entity) && !config.isAnimalKillOldestOnSpawn() ) {
+            if( isAnimalSegmentCountExceeded(entity.getLocation()) ) {
+                log.debug("refusing entity spawn due to chunk size limits for entity ", entity);
+                return false;
+            }
 	    }
 	    
-	    entitySpawnCounter++;
 	    return true;
+	}
+	
+	/** Return true if the segment identified by the location is currently
+	 * exceeding the amount of animals allowed per segment.
+	 * 
+	 * @return
+	 */
+	private boolean isAnimalSegmentCountExceeded(final Location l) {
+        final int maxPerSegment = config.getAnimalMaxPerSegment();
+        if( getAnimalSegmentCount(l) > maxPerSegment ) {
+            return false;
+        }
+        else {
+            return true;
+        }
+	}
+	
+	/** Return the current count of animals in the segment identified by
+	 * the location. 
+	 * 
+	 * @param l
+	 * @return
+	 */
+	private int getAnimalSegmentCount(final Location l) {
+        int count = 0;
+        
+        if( l != null ) {
+            final int chunkX = l.getChunk().getX();
+            final int chunkZ = l.getChunk().getZ();
+            final int segmentSize = config.getAnimalChunkSegmentSize();
+
+            // iterate through all chunks in the segment and count the animals
+            for(int x=chunkX-segmentSize; x <= chunkX+segmentSize; x++) {
+                for(int z=chunkZ-segmentSize; z <= chunkZ+segmentSize; z++) {
+                    ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
+                    count += chunkInfo.getAnimals().size();
+                }
+            }
+        }
+        
+        return count;
+	}
+	
+	private Animals getOldestSegmentAnimal(final Location l, boolean ignoreTamed) {
+	    int oldestTime = -1;
+	    Animals oldestAnimal = null;
+	    
+        if( l != null ) {
+            final int chunkX = l.getChunk().getX();
+            final int chunkZ = l.getChunk().getZ();
+            final int segmentSize = config.getAnimalChunkSegmentSize();
+
+            // iterate through all chunks in the segment and count the animals
+            for(int x=chunkX-segmentSize; x <= chunkX+segmentSize; x++) {
+                for(int z=chunkZ-segmentSize; z <= chunkZ+segmentSize; z++) {
+                    ChunkInfo chunkInfo = getChunkInfo(l.getChunk());
+                    for(Animals entity : chunkInfo.getAnimals()) {
+                        // ignore Tamed animals if directed to do so 
+                        if( ignoreTamed && entity instanceof Tameable ) {
+                            Tameable tameable = (Tameable) entity;
+                            if( tameable.isTamed() ) {
+                                continue;
+                            }
+                        }
+                        
+                        int ticks = entity.getTicksLived();
+                        
+                        // is this animal older than the oldest found so far?
+                        if( ticks > oldestTime ) {
+                            oldestTime = ticks;
+                            oldestAnimal = entity;
+                        }
+                    }
+                }
+            }
+        }
+	    
+        return oldestAnimal;
+	}
+	
+	/** Called to inform us when an entity has spawned.
+	 * 
+	 * @param entity
+	 */
+	public void entitySpawned(final Entity entity) {
+        if( util.isAnimal(entity) ) {
+            // are we over the max animals allowed per segment? If so and the right
+            // config flag is set, we kill off the oldest animal to make room for
+            // the new one.
+            if( config.isAnimalKillOldestOnSpawn() && isAnimalSegmentCountExceeded(entity.getLocation()) ) {
+                Animals oldestAnimal = getOldestSegmentAnimal(entity.getLocation(), true);
+                if( oldestAnimal != null ) {
+                    log.debug("Killing oldest animal "+oldestAnimal);
+                    oldestAnimal.damage(1000);
+                }
+            }
+        }
+        
+        entitySpawnCounter++;
 	}
 	
 	/** To be called when an entity has an "interaction" that keeps it active. Being
