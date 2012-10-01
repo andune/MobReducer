@@ -166,6 +166,11 @@ public class MobManager implements Runnable {
                 Animals oldestAnimal = getOldestSegmentAnimal(entity.getLocation(), true);
                 if( oldestAnimal != null ) {
                     log.debug("Killing oldest animal "+oldestAnimal);
+                    
+                    // set animal as "player damaged" so it will drop items
+                    EntityInfo entityInfo = getEntityInfo(oldestAnimal);
+                    entityInfo.setPlayerDamaged();
+                    
                     oldestAnimal.damage(1000);
                 }
             }
